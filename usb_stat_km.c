@@ -29,7 +29,7 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 		int ret = vfs_read(f, buf, 4096, &f->f_pos);
 		set_fs(fs);
 		filp_close(f, NULL);
-		printk("\n---///USB_KERNEL_MODULE///--- Stat file readed:\n\t%s", buf);
+		printk("\n>USB STAT KERNEL MODULE< : Stat file readed:\n\t%s", buf);
 		
 		char* buf_string = kmalloc(strlen(buf)*sizeof(char), GFP_KERNEL);
 		strcpy(buf_string, buf);
@@ -50,7 +50,7 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 					connection_count_char = token_ccount;
 			}
 		}
-		printk("\n---///USB_KERNEL_MODULE///---Stat file handled.");
+		printk("\n>USB STAT KERNEL MODULE< : Stat file handled.");
 		set_fs(fs);
 	}
 	char* connection_count_char_term = kmalloc((strlen(connection_count_char)+1)*sizeof(char), GFP_KERNEL);
@@ -72,10 +72,6 @@ static void write_statistic(char* manufacturer, char* product, char* serial, int
 
 	if (!IS_ERR(f))
 	{	
-		//struct tineval now;
-		//struct tm tm_val;
-		//do_gettimeofday(&now);
-		//time_to_tm(now.tv_sec, 0, &tm_val);
 		struct timeval time;
 		unsigned long local_time;
 		struct rtc_time tm;
@@ -93,7 +89,7 @@ static void write_statistic(char* manufacturer, char* product, char* serial, int
 		int ret = vfs_write(f, new_sl, strlen(new_sl), &f->f_pos);
 		set_fs(fs_w);
 		filp_close(f, NULL);
-		printk("\n---///USB_KERNEL_MODULE///--- Stat file writed with new line.");
+		printk("\n>USB STAT KERNEL MODULE< : Stat file writed with new line.");
 
 		set_fs(fs_w);
 	}
@@ -104,7 +100,7 @@ static void write_statistic(char* manufacturer, char* product, char* serial, int
 static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
 	struct usb_device *dev = interface_to_usbdev(intf);
-	printk("\n---///USB_KERNEL_MODULE///--- Some usb connected");
+	printk("\n>USB STAT KERNEL MODULE< : Detect new connected usb.");
 
 	//No data handle
 	char* manufacturer;
@@ -133,7 +129,7 @@ static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 static void disconnect(struct usb_interface *intf)
 {
 	struct usb_device *device = interface_to_usbdev(intf);
-	printk("---///USB_KERNEL_MODULE///--- Some usb disconnected.");
+	printk(">USB STAT KERNEL MODULE< : Some usb disconnected.");
 }
 
 static int driver_suspend(struct usb_interface *intf, pm_message_t message)
@@ -158,7 +154,7 @@ MODULE_LICENSE("GPL");
 
 static struct usb_driver statistic_usb_driver = 
 {
-	.name = "usb_kernel_module",
+	.name = "usb_stat_km",
 	.probe = probe,
 	.disconnect = disconnect,
 	.suspend = driver_suspend,
@@ -173,14 +169,14 @@ static struct usb_driver statistic_usb_driver =
 static int my_init_module(void)
 {
 	int err;
-	printk("Stat grabber activated.\n");
+	printk(">USB STAT KERNEL MODULE< : Stat grabber activated.\n");
 	err = usb_register(&statistic_usb_driver);
 	return err;
 }
 
 static void my_cleanup_module(void)
 {
-	printk("Stat grabber deactivated.\n");
+	printk(">USB STAT KERNEL MODULE< : Stat grabber deactivated.\n");
 	usb_deregister(&statistic_usb_driver);
 }
 
