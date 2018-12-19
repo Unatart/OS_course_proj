@@ -52,6 +52,8 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 		}
 		printk("\n>USB STAT KERNEL MODULE< : Stat file handled.");
 		set_fs(fs);
+		
+		kfree(buf_string);
 	}
 	char* connection_count_char_term = kmalloc((strlen(connection_count_char)+1)*sizeof(char), GFP_KERNEL);
 	strcpy(connection_count_char_term, connection_count_char);
@@ -59,7 +61,6 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 	int connection_count;
 	sscanf(connection_count_char_term, "%d", &connection_count);
 	connection_count++;
-
 
 	return connection_count;
 }
@@ -82,7 +83,7 @@ static void write_statistic(char* manufacturer, char* product, char* serial, int
 	
 		char new_sl[1024];
 
-		sprintf(new_sl, "%d\t%s\t%s\t%s\t%04d-%02d-%02d %02d:%02d:%02d\n", connection_count, manufacturer, product, serial, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+		sprintf(new_sl, "%d\t%s\t%s\t%s\t%04d-%02d-%02d %02d:%02d:%02d\n", connection_count, manufacturer, product, serial, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour+3, tm.tm_min, tm.tm_sec);
 		mm_segment_t fs_w;
 		fs_w = get_fs();
 		set_fs(get_ds());
@@ -123,9 +124,8 @@ static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 	write_statistic(manufacturer, product, serial, connection_count);
 
-	return 0;
+	return -1;
 }
-
 static void disconnect(struct usb_interface *intf)
 {
 	struct usb_device *device = interface_to_usbdev(intf);
