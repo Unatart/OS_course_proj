@@ -9,93 +9,92 @@
 #include <asm/segment.h>
 #include <asm/uaccess.h>
 
-static int read_statistic(char* manufacturer, char* product, char* serial)
-{
-	struct file *f;
-	char buf[4096];
-	
-	int i;
-	for (i=0; i<4096; i++)
-		buf[i] = 0;
-	
-	f = filp_open("/var/log/statistic.log", O_RDONLY, 0);
-	char* connection_count_char = "0";
-	
-	if(!IS_ERR(f))
-	{
-		mm_segment_t fs;
-		fs = get_fs();
-		set_fs(get_ds());
-		int ret = vfs_read(f, buf, 4096, &f->f_pos);
-		set_fs(fs);
-		filp_close(f, NULL);
-		printk("\n>USB STAT KERNEL MODULE< : Stat file readed:\n\t%s", buf);
-		
-		char* buf_string = kmalloc(strlen(buf)*sizeof(char), GFP_KERNEL);
-		strcpy(buf_string, buf);
-		
-		char* line;
-		while(buf_string != NULL)
-		{
-			line = strsep(&buf_string, "\n");
 
-			if (line != NULL && strlen(line) >= 1)
-			{
-				char* token_ccount = strsep(&line, "\t");
-				char* token_manuf = strsep(&line, "\t");
-				char* token_product = strsep(&line, "\t");
-				char* token_serial = strsep(&line, "\t");
-				
-				if (strcmp(token_product, product) == 0 && strcmp(token_serial, serial) == 0)
-					connection_count_char = token_ccount;
+#define BUF_SIZE 4096
+
+
+static int read_statistic(char* manufacturer, char* product, char* serial)
+{	
+	char buf[BUF_SIZE] = {'\0'};
+	
+	int connection_count = 0;
+	
+	struct file* f = filp_open("/var/log/statistic.log", O_RDONLY, 0);
+	if(IS_ERR(f))
+	{
+		return connection_count;
+	}
+	
+	mm_segment_t fs;
+	fs = get_fs();
+	set_fs(get_ds());
+	ssize_t ret = vfs_read(f, buf, BUF_SIZE, &f->f_pos);
+	set_fs(fs);
+	filp_close(f, NULL);
+	printk("\n>USB STAT KERNEL MODULE< : Stat file readed.");
+	
+	if (ret == 0) {
+		return 0;
+	}
+
+	char* buf_string = buf;		
+	while(buf_string != NULL)
+	{
+		char* line = strsep(&buf_string, "\n");
+
+		if (line != NULL && strlen(line) >= 1)
+		{
+			char* token_ccount = strsep(&line, "\t");
+			char* token_manuf = strsep(&line, "\t");
+			char* token_product = strsep(&line, "\t");
+			char* token_serial = strsep(&line, "\t");
+			
+			if (strcmp(token_manuf, manufacturer) == 0 && \
+				strcmp(token_product, product) == 0 && \
+				strcmp(token_serial, serial) == 0) {
+			
+				sscanf(token_ccount, "%d", &connection_count);
 			}
 		}
-		printk("\n>USB STAT KERNEL MODULE< : Stat file handled.");
-		set_fs(fs);
-		
-		kfree(buf_string);
 	}
-	char* connection_count_char_term = kmalloc((strlen(connection_count_char)+1)*sizeof(char), GFP_KERNEL);
-	strcpy(connection_count_char_term, connection_count_char);
-	strcat(connection_count_char_term, "\0");
-	int connection_count;
-	sscanf(connection_count_char_term, "%d", &connection_count);
-	connection_count++;
-
+	printk("\n>USB STAT KERNEL MODULE< : Stat file handled.");
+	set_fs(fs);
+	
 	return connection_count;
 }
 
 static void write_statistic(char* manufacturer, char* product, char* serial, int connection_count)
 {
-	struct file *f; 
+	struct file* f = filp_open("/var/log/statistic.log", O_APPEND | O_CREAT | O_WRONLY, 0);
 
-	f = filp_open("/var/log/statistic.log", O_APPEND | O_CREAT | O_WRONLY, 0);
-
-	if (!IS_ERR(f))
-	{	
-		struct timeval time;
-		unsigned long local_time;
-		struct rtc_time tm;
-
-		do_gettimeofday(&time);
-		local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
-		rtc_time_to_tm(local_time, &tm);
-	
-		char new_sl[1024];
-
-		sprintf(new_sl, "%d\t%s\t%s\t%s\t%04d-%02d-%02d %02d:%02d:%02d\n", connection_count, manufacturer, product, serial, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour+3, tm.tm_min, tm.tm_sec);
-		mm_segment_t fs_w;
-		fs_w = get_fs();
-		set_fs(get_ds());
-		int ret = vfs_write(f, new_sl, strlen(new_sl), &f->f_pos);
-		set_fs(fs_w);
-		filp_close(f, NULL);
-		printk("\n>USB STAT KERNEL MODULE< : Stat file writed with new line.");
-
-		set_fs(fs_w);
+	if (IS_ERR(f))
+	{
+		return;
 	}
+	
+	struct timeval time;
+	do_gettimeofday(&time);
+	
+	unsigned long local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
+	
+	struct rtc_time tm;
+	rtc_time_to_tm(local_time, &tm);
 
-	return 0;
+	char new_sl[1024];
+
+	sprintf(new_sl, "%d\t%s\t%s\t%s\t%04d-%02d-%02d %02d:%02d:%02d\n",
+		connection_count, manufacturer, product, serial, tm.tm_year + 1900,
+		tm.tm_mon + 1, tm.tm_mday, tm.tm_hour+3, tm.tm_min, tm.tm_sec);
+		
+	mm_segment_t fs_w;
+	fs_w = get_fs();
+	set_fs(get_ds());
+	vfs_write(f, new_sl, strlen(new_sl), &f->f_pos);
+	set_fs(fs_w);
+	filp_close(f, NULL);
+	set_fs(fs_w);
+	
+	printk("\n>USB STAT KERNEL MODULE< : Stat file writed with new line.");
 }
 
 static int probe(struct usb_interface *intf, const struct usb_device_id *id)
@@ -120,7 +119,7 @@ static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 	else
 		serial = dev->serial;
 
-	int connection_count = read_statistic(manufacturer, product, serial);
+	int connection_count = read_statistic(manufacturer, product, serial) + 1;
 
 	write_statistic(manufacturer, product, serial, connection_count);
 
@@ -128,7 +127,6 @@ static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 }
 static void disconnect(struct usb_interface *intf)
 {
-	struct usb_device *device = interface_to_usbdev(intf);
 	printk(">USB STAT KERNEL MODULE< : Some usb disconnected.");
 }
 
@@ -145,7 +143,7 @@ static int driver_post_reset(struct usb_interface *intf)
 { return 0; }
 
 static struct usb_device_id empty_usb_table[] = {
- {.driver_info = 42},
+ {.driver_info = 1},
  { }
 };
 
