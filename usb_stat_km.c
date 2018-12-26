@@ -19,17 +19,14 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 	
 	int connection_count = 0;
 	
-	struct file* f = filp_open("/var/log/statistic.log", O_RDONLY, 0);
+	struct file* f = filp_open("var/log/statistic.log", O_RDONLY, 0);
 	if(IS_ERR(f))
 	{
 		return connection_count;
 	}
-	
-	mm_segment_t fs;
-	fs = get_fs();
-	set_fs(get_ds());
-	ssize_t ret = vfs_read(f, buf, BUF_SIZE, &f->f_pos);
-	set_fs(fs);
+
+	int ret = kernel_read(f, &f->f_pos, buf, BUF_SIZE);
+
 	filp_close(f, NULL);
 	printk("\n>USB STAT KERNEL MODULE< : Stat file readed.");
 	
@@ -58,14 +55,13 @@ static int read_statistic(char* manufacturer, char* product, char* serial)
 		}
 	}
 	printk("\n>USB STAT KERNEL MODULE< : Stat file handled.");
-	set_fs(fs);
 	
 	return connection_count;
 }
 
 static void write_statistic(char* manufacturer, char* product, char* serial, int connection_count)
 {
-	struct file* f = filp_open("/var/log/statistic.log", O_APPEND | O_CREAT | O_WRONLY, 0);
+	struct file* f = filp_open("var/log/statistic.log", O_APPEND | O_CREAT | O_WRONLY, 0);
 
 	if (IS_ERR(f))
 	{
@@ -86,13 +82,9 @@ static void write_statistic(char* manufacturer, char* product, char* serial, int
 		connection_count, manufacturer, product, serial, tm.tm_year + 1900,
 		tm.tm_mon + 1, tm.tm_mday, tm.tm_hour+3, tm.tm_min, tm.tm_sec);
 		
-	mm_segment_t fs_w;
-	fs_w = get_fs();
-	set_fs(get_ds());
-	vfs_write(f, new_sl, strlen(new_sl), &f->f_pos);
-	set_fs(fs_w);
+	kernel_write(f, new_sl, strlen(new_sl), &f->f_pos);
+
 	filp_close(f, NULL);
-	set_fs(fs_w);
 	
 	printk("\n>USB STAT KERNEL MODULE< : Stat file writed with new line.");
 }
@@ -102,7 +94,6 @@ static int probe(struct usb_interface *intf, const struct usb_device_id *id)
 	struct usb_device *dev = interface_to_usbdev(intf);
 	printk("\n>USB STAT KERNEL MODULE< : Detect new connected usb.");
 
-	//No data handle
 	char* manufacturer;
 	if (dev->manufacturer == NULL)
 		manufacturer = "no data";
